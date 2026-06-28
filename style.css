@@ -208,6 +208,8 @@ body::before {
   text-transform:uppercase; letter-spacing:.08em; text-align:center;
 }
 
+.h-actions { display:flex; align-items:center; gap:8px; }
+
 .h-model {
   display:flex; align-items:center; gap:8px;
   background:var(--bg-glass); border:1px solid var(--bd);
@@ -1612,5 +1614,48 @@ input:checked + .slider:before {
 @media (max-width: 960px) {
   .app-footer {
     display: none;
+  }
+  .app-header {
+    padding: 0 12px;
+    gap: 8px;
+  }
+  .h-brand {
+    gap: 6px;
+  }
+  .h-logo {
+    width: 28px;
+    height: 28px;
+  }
+  .h-title {
+    font-size: 0.95rem;
+  }
+  .h-tag {
+    display: none;
+  }
+  #btn-privacy span,
+  #btn-tutorial span {
+    display: none;
+  }
+  #btn-privacy,
+  #btn-tutorial {
+    padding: 6px;
+    min-width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #h-model-txt {
+    display: none;
+  }
+  .h-model {
+    padding: 0;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--bd);
   }
 }

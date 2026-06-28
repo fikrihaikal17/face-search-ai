@@ -13,6 +13,18 @@
 
 'use strict';
 
+// Patch getContext to set willReadFrequently: true by default to avoid browser warning flooding in console
+(function() {
+  const originalGetContext = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function(type, contextAttributes) {
+    if (type === '2d') {
+      if (!contextAttributes) contextAttributes = {};
+      contextAttributes.willReadFrequently = true;
+    }
+    return originalGetContext.call(this, type, contextAttributes);
+  };
+})();
+
 // ─── Constants ───────────────────────────────────────────
 const MODELS_URL = './models';
 const DB_NAME    = 'FaceSearchDB_v2';
