@@ -1392,10 +1392,10 @@ async function analyzeImageWithAI(imgDataUrl) {
   // 1. Try OpenRouter Models first (highest priority, most tokens/models)
   if (CONFIG.OPENROUTER_API_KEY) {
     const openRouterModels = [
-      'meta-llama/llama-3.2-11b-vision-instruct',
-      'meta-llama/llama-3.2-90b-vision-instruct',
-      'google/gemini-2.5-flash',
-      'qwen/qwen-2-vl-7b-instruct'
+      'meta-llama/llama-3.2-11b-vision-instruct:free',
+      'qwen/qwen2.5-vl-7b-instruct:free',
+      'google/gemini-2.0-flash-exp:free',
+      'mistralai/mistral-small-3.1-24b-instruct:free'
     ];
     for (const model of openRouterModels) {
       try {
@@ -1410,7 +1410,11 @@ async function analyzeImageWithAI(imgDataUrl) {
 
   // 2. Try Groq Models (Layer 1 fallback)
   if (CONFIG.GROQ_API_KEY) {
-    const groqModels = ['llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview', 'qwen/qwen3.6-27b', 'meta-llama/llama-4-scout-17b-16e-instruct'];
+    const groqModels = [
+      'meta-llama/llama-4-scout-17b-16e-instruct',
+      'llama-4-scout-17b-16e-instruct',
+      'qwen/qwen3-vl-32b-instruct'
+    ];
     for (const model of groqModels) {
       try {
         console.log(`Trying Groq upload analysis with model: ${model}`);
@@ -1499,6 +1503,7 @@ Wajib keluarkan output dalam format JSON valid berikut (tanpa pembungkus markdow
         ]
       }
     ],
+    max_tokens: 1024,
     temperature: 0.05
   };
 
@@ -1519,12 +1524,16 @@ Wajib keluarkan output dalam format JSON valid berikut (tanpa pembungkus markdow
   }
 
   const data = await response.json();
-  const text = data.choices[0].message.content.trim();
+  const choice = data.choices?.[0];
+  if (!choice?.message?.content) {
+    throw new Error('OpenRouter returned empty or malformed response (no choices[0].message.content)');
+  }
+  const text = choice.message.content.trim();
   const cleanJson = text.replace(/```json|```/g, '').trim();
   return JSON.parse(cleanJson);
 }
 
-async function analyzeImageWithOpenRouter(imgDataUrl, modelName = "meta-llama/llama-3.2-11b-vision-instruct") {
+async function analyzeImageWithOpenRouter(imgDataUrl, modelName = "meta-llama/llama-3.2-11b-vision-instruct:free") {
   const apiKey = CONFIG.OPENROUTER_API_KEY;
   if (!apiKey) return null;
 
@@ -1548,6 +1557,7 @@ async function analyzeImageWithOpenRouter(imgDataUrl, modelName = "meta-llama/ll
           ]
         }
       ],
+      max_tokens: 512,
       temperature: 0.1
     };
 
@@ -1568,7 +1578,9 @@ async function analyzeImageWithOpenRouter(imgDataUrl, modelName = "meta-llama/ll
     }
 
     const data = await response.json();
-    const text = data.choices[0].message.content.trim();
+    const choice = data.choices?.[0];
+    if (!choice?.message?.content) throw new Error('Empty response from OpenRouter');
+    const text = choice.message.content.trim();
     const cleanJson = text.replace(/```json|```/g, '').trim();
     return JSON.parse(cleanJson);
   } catch (err) {
@@ -1577,7 +1589,7 @@ async function analyzeImageWithOpenRouter(imgDataUrl, modelName = "meta-llama/ll
   }
 }
 
-async function verifyWithGroq(queryFaceUrl, dbPhotoUrl, modelName = "qwen/qwen3.6-27b") {
+async function verifyWithGroq(queryFaceUrl, dbPhotoUrl, modelName = "meta-llama/llama-4-scout-17b-16e-instruct") {
   const apiKey = CONFIG.GROQ_API_KEY;
   if (!apiKey) throw new Error('Groq API Key tidak ditemukan.');
 
@@ -1739,13 +1751,13 @@ Wajib keluarkan output dalam format JSON valid berikut (tanpa pembungkus markdow
 }
 
 async function verifyFaceWithAI(queryFaceUrl, dbPhotoUrl) {
-  // 1. Try OpenRouter Models first (highest priority, most tokens/models)
+  // 1. Try OpenRouter Models first (highest priority — free vision models)
   if (CONFIG.OPENROUTER_API_KEY) {
     const openRouterModels = [
-      'meta-llama/llama-3.2-11b-vision-instruct',
-      'meta-llama/llama-3.2-90b-vision-instruct',
-      'google/gemini-2.5-flash',
-      'qwen/qwen-2-vl-7b-instruct'
+      'meta-llama/llama-3.2-11b-vision-instruct:free',
+      'qwen/qwen2.5-vl-7b-instruct:free',
+      'google/gemini-2.0-flash-exp:free',
+      'mistralai/mistral-small-3.1-24b-instruct:free'
     ];
     for (const model of openRouterModels) {
       try {
@@ -1757,9 +1769,13 @@ async function verifyFaceWithAI(queryFaceUrl, dbPhotoUrl) {
     }
   }
 
-  // 2. Try Groq Models (Layer 1 fallback)
+  // 2. Try Groq Vision Models (Layer 1 fallback — current supported models)
   if (CONFIG.GROQ_API_KEY) {
-    const groqModels = ['llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview', 'qwen/qwen3.6-27b', 'meta-llama/llama-4-scout-17b-16e-instruct'];
+    const groqModels = [
+      'meta-llama/llama-4-scout-17b-16e-instruct',
+      'llama-4-scout-17b-16e-instruct',
+      'qwen/qwen3-vl-32b-instruct'
+    ];
     for (const model of groqModels) {
       try {
         console.log(`Trying Groq verification with model: ${model}`);
