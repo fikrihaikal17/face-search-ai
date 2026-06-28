@@ -1389,13 +1389,26 @@ async function analyzeImageWithGemini(imgDataUrl, modelName = "gemini-2.5-flash"
 }
 
 async function analyzeImageWithAI(imgDataUrl) {
-  // 1. Try OpenRouter Models first (highest priority, most tokens/models)
+  // 1. Gemini (Layer 1 — reliable, free quota)
+  if (CONFIG.GEMINI_API_KEY) {
+    const geminiModels = ['gemini-2.0-flash', 'gemini-flash-lite-latest', 'gemini-2.5-flash'];
+    for (const model of geminiModels) {
+      try {
+        console.log(`Trying Gemini upload analysis with model: ${model}`);
+        const res = await analyzeImageWithGemini(imgDataUrl, model);
+        if (res) return res;
+      } catch (err) {
+        console.warn(`Gemini model ${model} failed, trying next...`);
+      }
+    }
+  }
+
+  // 2. OpenRouter paid models (Layer 2 — uses credit balance, max_tokens kecil)
   if (CONFIG.OPENROUTER_API_KEY) {
     const openRouterModels = [
-      'meta-llama/llama-3.2-11b-vision-instruct:free',
-      'qwen/qwen2.5-vl-7b-instruct:free',
-      'google/gemini-2.0-flash-exp:free',
-      'mistralai/mistral-small-3.1-24b-instruct:free'
+      'meta-llama/llama-3.2-11b-vision-instruct',
+      'qwen/qwen2.5-vl-7b-instruct',
+      'mistralai/mistral-small-3.1-24b-instruct'
     ];
     for (const model of openRouterModels) {
       try {
@@ -1404,38 +1417,6 @@ async function analyzeImageWithAI(imgDataUrl) {
         if (res) return res;
       } catch (err) {
         console.warn(`OpenRouter model ${model} failed, trying next fallback...`);
-      }
-    }
-  }
-
-  // 2. Try Groq Models (Layer 1 fallback)
-  if (CONFIG.GROQ_API_KEY) {
-    const groqModels = [
-      'meta-llama/llama-4-scout-17b-16e-instruct',
-      'llama-4-scout-17b-16e-instruct',
-      'qwen/qwen3-vl-32b-instruct'
-    ];
-    for (const model of groqModels) {
-      try {
-        console.log(`Trying Groq upload analysis with model: ${model}`);
-        const res = await analyzeImageWithGroq(imgDataUrl, model);
-        if (res) return res;
-      } catch (err) {
-        console.warn(`Groq model ${model} failed, trying next fallback...`);
-      }
-    }
-  }
-
-  // 3. Try Gemini Models (Layer 2 fallback)
-  if (CONFIG.GEMINI_API_KEY) {
-    const geminiModels = ['gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash'];
-    for (const model of geminiModels) {
-      try {
-        console.log(`Trying Gemini upload analysis with model: ${model}`);
-        const res = await analyzeImageWithGemini(imgDataUrl, model);
-        if (res) return res;
-      } catch (err) {
-        console.warn(`Gemini model ${model} failed, trying next fallback...`);
       }
     }
   }
@@ -1751,13 +1732,25 @@ Wajib keluarkan output dalam format JSON valid berikut (tanpa pembungkus markdow
 }
 
 async function verifyFaceWithAI(queryFaceUrl, dbPhotoUrl) {
-  // 1. Try OpenRouter Models first (highest priority — free vision models)
+  // 1. Gemini (Layer 1 — reliable, free quota)
+  if (CONFIG.GEMINI_API_KEY) {
+    const geminiModels = ['gemini-2.0-flash', 'gemini-flash-lite-latest', 'gemini-2.5-flash'];
+    for (const model of geminiModels) {
+      try {
+        console.log(`Trying Gemini verification with model: ${model}`);
+        return await verifyWithGemini(queryFaceUrl, dbPhotoUrl, model);
+      } catch (err) {
+        console.warn(`Gemini Vision model ${model} failed: ${err.message}`);
+      }
+    }
+  }
+
+  // 2. OpenRouter paid models (Layer 2 — uses credit balance)
   if (CONFIG.OPENROUTER_API_KEY) {
     const openRouterModels = [
-      'meta-llama/llama-3.2-11b-vision-instruct:free',
-      'qwen/qwen2.5-vl-7b-instruct:free',
-      'google/gemini-2.0-flash-exp:free',
-      'mistralai/mistral-small-3.1-24b-instruct:free'
+      'meta-llama/llama-3.2-11b-vision-instruct',
+      'qwen/qwen2.5-vl-7b-instruct',
+      'mistralai/mistral-small-3.1-24b-instruct'
     ];
     for (const model of openRouterModels) {
       try {
@@ -1769,37 +1762,7 @@ async function verifyFaceWithAI(queryFaceUrl, dbPhotoUrl) {
     }
   }
 
-  // 2. Try Groq Vision Models (Layer 1 fallback — current supported models)
-  if (CONFIG.GROQ_API_KEY) {
-    const groqModels = [
-      'meta-llama/llama-4-scout-17b-16e-instruct',
-      'llama-4-scout-17b-16e-instruct',
-      'qwen/qwen3-vl-32b-instruct'
-    ];
-    for (const model of groqModels) {
-      try {
-        console.log(`Trying Groq verification with model: ${model}`);
-        return await verifyWithGroq(queryFaceUrl, dbPhotoUrl, model);
-      } catch (err) {
-        console.warn(`Groq Vision model ${model} failed: ${err.message}`);
-      }
-    }
-  }
-
-  // 3. Try Gemini Models (Layer 2 fallback)
-  if (CONFIG.GEMINI_API_KEY) {
-    const geminiModels = ['gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash'];
-    for (const model of geminiModels) {
-      try {
-        console.log(`Trying Gemini verification with model: ${model}`);
-        return await verifyWithGemini(queryFaceUrl, dbPhotoUrl, model);
-      } catch (err) {
-        console.warn(`Gemini Vision model ${model} failed: ${err.message}`);
-      }
-    }
-  }
-
-  throw new Error('Semua model AI (OpenRouter / Groq / Gemini) mengalami gangguan atau tidak dapat diakses saat ini.');
+  throw new Error('Semua model AI (Gemini / OpenRouter) tidak dapat diakses saat ini.');
 }
 
 function renderDetailAI(item, rank) {
