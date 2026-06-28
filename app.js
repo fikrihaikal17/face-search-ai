@@ -908,7 +908,9 @@ async function runSearch() {
           resItem.aiVerified = {
             same: !!aiResult.same,
             confidence: Number(aiResult.confidence || 0),
-            reason: String(aiResult.reason || '')
+            reason: String(aiResult.reason || ''),
+            biometricAnalysis: aiResult.biometricAnalysis || null,
+            differencesFound: aiResult.differencesFound || null
           };
         } catch (err) {
           console.error(`AI verification failed for item ${resItem.name}:`, err);
@@ -1432,20 +1434,33 @@ async function verifyWithOpenRouter(queryFaceUrl, dbPhotoUrl, modelName = "meta-
   const apiKey = CONFIG.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OpenRouter API Key tidak ditemukan.');
 
-  const verifyPrompt = `Kamu adalah sistem verifikasi identitas biometrik presisi tinggi.
-Gambar 1 = WAJAH REFERENSI (kueri pencarian). Gambar 2 = WAJAH KANDIDAT dari database.
-Apakah kedua gambar ini menampilkan orang yang SAMA PERSIS?
+  const verifyPrompt = `Kamu adalah pakar forensik biometrik wajah digital tingkat dunia. Tugasmu adalah melakukan analisis komparatif wajah antara Gambar 1 dan Gambar 2 secara sangat detail dan objektif untuk menentukan apakah mereka orang yang SAMA PERSIS.
 
-Analisis SANGAT KETAT berdasarkan struktur wajah yang tidak berubah:
-- Bentuk & proporsi wajah (oval/bulat/persegi/lonjong)
-- Jarak antar mata, lebar hidung, bentuk dagu, lebar dahi
-- Lekukan pipi, posisi tulang pipi, bentuk alis
-- Rasio panjang wajah vs lebar
+Langkah Analisis Biometrik:
+1. Analisis Mata: Periksa bentuk mata, kelopak mata (monolid/double eyelid), jarak antar mata, dan kemiringan sudut mata luar.
+2. Analisis Hidung: Periksa bentuk ujung hidung (bulat/runcing/datar), lebar cuping hidung, dan kelurusan jembatan hidung.
+3. Analisis Bibir & Rahang: Periksa ketebalan bibir atas/bawah, lekukan busur Cupid, garis rahang, bentuk dagu (lebar, runcing, atau belah).
+4. Analisis Proporsi & Struktur Tulang: Periksa lebar dahi, posisi tulang pipi, dan rasio panjang wajah dibandingkan lebar wajah.
 
-ABAIKAN: sudut kamera, pencahayaan, ekspresi, kacamata, hijab, jenggot, riasan — fokus HANYA pada STRUKTUR TULANG WAJAH.
+PERINGATAN KETAT:
+- Riasan pengantin (wedding makeup), pencahayaan, ekspresi senyum/datar, sudut foto, penutup kepala (spt kopiah/blangkon/hijab), atau keberadaan jerawat/tahi lalat/kacamata TIDAK BOLEH memengaruhi keputusan Anda. Fokus HANYA pada struktur tulang dan biometrik dasar.
+- Jika ada perbedaan struktural biometrik sekecil apa pun yang menunjukkan mereka orang berbeda, Anda WAJIB menetapkan same=false.
 
-Jika ada keraguan sedikit pun bahwa ini orang berbeda, set same=false.
-Output HANYA JSON: {"same": boolean, "confidence": 0-100, "reason": "max 20 kata bahasa Indonesia"}`;
+Wajib keluarkan output dalam format JSON valid berikut (tanpa pembungkus markdown):
+{
+  "biometricAnalysis": {
+    "eyes": "analisis komparatif mata Gambar 1 vs Gambar 2",
+    "nose": "analisis komparatif hidung Gambar 1 vs Gambar 2",
+    "mouthAndJaw": "analisis komparatif bibir, dagu, rahang Gambar 1 vs Gambar 2",
+    "faceShapeAndBone": "analisis bentuk wajah & struktur tulang Gambar 1 vs Gambar 2"
+  },
+  "differencesFound": [
+    "tulis perbedaan spesifik yang ditemukan, atau kosongkan [] jika tidak ada"
+  ],
+  "same": true/false,
+  "confidence": 0-100,
+  "reason": "Penjelasan singkat keputusan akhir dalam bahasa Indonesia (maksimal 20 kata)"
+}`;
 
   const payload = {
     model: modelName,
@@ -1554,20 +1569,33 @@ async function verifyWithGroq(queryFaceUrl, dbPhotoUrl, modelName = "qwen/qwen3.
   const apiKey = CONFIG.GROQ_API_KEY;
   if (!apiKey) throw new Error('Groq API Key tidak ditemukan.');
 
-  const verifyPrompt = `Kamu adalah sistem verifikasi identitas biometrik presisi tinggi.
-Gambar 1 = WAJAH REFERENSI (kueri pencarian). Gambar 2 = WAJAH KANDIDAT dari database.
-Apakah kedua gambar ini menampilkan orang yang SAMA PERSIS?
+  const verifyPrompt = `Kamu adalah pakar forensik biometrik wajah digital tingkat dunia. Tugasmu adalah melakukan analisis komparatif wajah antara Gambar 1 dan Gambar 2 secara sangat detail dan objektif untuk menentukan apakah mereka orang yang SAMA PERSIS.
 
-Analisis SANGAT KETAT berdasarkan struktur wajah yang tidak berubah:
-- Bentuk & proporsi wajah (oval/bulat/persegi/lonjong)
-- Jarak antar mata, lebar hidung, bentuk dagu, lebar dahi
-- Lekukan pipi, posisi tulang pipi, bentuk alis
-- Rasio panjang wajah vs lebar
+Langkah Analisis Biometrik:
+1. Analisis Mata: Periksa bentuk mata, kelopak mata (monolid/double eyelid), jarak antar mata, dan kemiringan sudut mata luar.
+2. Analisis Hidung: Periksa bentuk ujung hidung (bulat/runcing/datar), lebar cuping hidung, dan kelurusan jembatan hidung.
+3. Analisis Bibir & Rahang: Periksa ketebalan bibir atas/bawah, lekukan busur Cupid, garis rahang, bentuk dagu (lebar, runcing, atau belah).
+4. Analisis Proporsi & Struktur Tulang: Periksa lebar dahi, posisi tulang pipi, dan rasio panjang wajah dibandingkan lebar wajah.
 
-ABAIKAN: sudut kamera, pencahayaan, ekspresi, kacamata, hijab, jenggot, riasan — fokus HANYA pada STRUKTUR TULANG WAJAH.
+PERINGATAN KETAT:
+- Riasan pengantin (wedding makeup), pencahayaan, ekspresi senyum/datar, sudut foto, penutup kepala (spt kopiah/blangkon/hijab), atau keberadaan jerawat/tahi lalat/kacamata TIDAK BOLEH memengaruhi keputusan Anda. Fokus HANYA pada struktur tulang dan biometrik dasar.
+- Jika ada perbedaan struktural biometrik sekecil apa pun yang menunjukkan mereka orang berbeda, Anda WAJIB menetapkan same=false.
 
-Jika ada keraguan sedikit pun bahwa ini orang berbeda, set same=false.
-Output HANYA JSON: {"same": boolean, "confidence": 0-100, "reason": "max 20 kata bahasa Indonesia"}`;
+Wajib keluarkan output dalam format JSON valid berikut (tanpa pembungkus markdown):
+{
+  "biometricAnalysis": {
+    "eyes": "analisis komparatif mata Gambar 1 vs Gambar 2",
+    "nose": "analisis komparatif hidung Gambar 1 vs Gambar 2",
+    "mouthAndJaw": "analisis komparatif bibir, dagu, rahang Gambar 1 vs Gambar 2",
+    "faceShapeAndBone": "analisis bentuk wajah & struktur tulang Gambar 1 vs Gambar 2"
+  },
+  "differencesFound": [
+    "tulis perbedaan spesifik yang ditemukan, atau kosongkan [] jika tidak ada"
+  ],
+  "same": true/false,
+  "confidence": 0-100,
+  "reason": "Penjelasan singkat keputusan akhir dalam bahasa Indonesia (maksimal 20 kata)"
+}`;
 
   const payload = {
     model: modelName,
@@ -1624,20 +1652,33 @@ async function verifyWithGemini(queryFaceUrl, dbPhotoUrl, modelName = "gemini-2.
 
   const cleanBase64 = (dataUrl) => dataUrl.split(',')[1];
 
-  const verifyPrompt = `Kamu adalah sistem verifikasi identitas biometrik presisi tinggi.
-Gambar 1 = WAJAH REFERENSI (kueri pencarian). Gambar 2 = WAJAH KANDIDAT dari database.
-Apakah kedua gambar ini menampilkan orang yang SAMA PERSIS?
+  const verifyPrompt = `Kamu adalah pakar forensik biometrik wajah digital tingkat dunia. Tugasmu adalah melakukan analisis komparatif wajah antara Gambar 1 dan Gambar 2 secara sangat detail dan objektif untuk menentukan apakah mereka orang yang SAMA PERSIS.
 
-Analisis SANGAT KETAT berdasarkan struktur wajah yang tidak berubah:
-- Bentuk & proporsi wajah (oval/bulat/persegi/lonjong)
-- Jarak antar mata, lebar hidung, bentuk dagu, lebar dahi
-- Lekukan pipi, posisi tulang pipi, bentuk alis
-- Rasio panjang wajah vs lebar
+Langkah Analisis Biometrik:
+1. Analisis Mata: Periksa bentuk mata, kelopak mata (monolid/double eyelid), jarak antar mata, dan kemiringan sudut mata luar.
+2. Analisis Hidung: Periksa bentuk ujung hidung (bulat/runcing/datar), lebar cuping hidung, dan kelurusan jembatan hidung.
+3. Analisis Bibir & Rahang: Periksa ketebalan bibir atas/bawah, lekukan busur Cupid, garis rahang, bentuk dagu (lebar, runcing, atau belah).
+4. Analisis Proporsi & Struktur Tulang: Periksa lebar dahi, posisi tulang pipi, dan rasio panjang wajah dibandingkan lebar wajah.
 
-ABAIKAN: sudut kamera, pencahayaan, ekspresi, kacamata, hijab, jenggot, riasan — fokus HANYA pada STRUKTUR TULANG WAJAH.
+PERINGATAN KETAT:
+- Riasan pengantin (wedding makeup), pencahayaan, ekspresi senyum/datar, sudut foto, penutup kepala (spt kopiah/blangkon/hijab), atau keberadaan jerawat/tahi lalat/kacamata TIDAK BOLEH memengaruhi keputusan Anda. Fokus HANYA pada struktur tulang dan biometrik dasar.
+- Jika ada perbedaan struktural biometrik sekecil apa pun yang menunjukkan mereka orang berbeda, Anda WAJIB menetapkan same=false.
 
-Jika ada keraguan sedikit pun bahwa ini orang berbeda, set same=false.
-Output HANYA JSON: {"same": boolean, "confidence": 0-100, "reason": "max 20 kata bahasa Indonesia"}`;
+Wajib keluarkan output dalam format JSON valid berikut (tanpa pembungkus markdown):
+{
+  "biometricAnalysis": {
+    "eyes": "analisis komparatif mata Gambar 1 vs Gambar 2",
+    "nose": "analisis komparatif hidung Gambar 1 vs Gambar 2",
+    "mouthAndJaw": "analisis komparatif bibir, dagu, rahang Gambar 1 vs Gambar 2",
+    "faceShapeAndBone": "analisis bentuk wajah & struktur tulang Gambar 1 vs Gambar 2"
+  },
+  "differencesFound": [
+    "tulis perbedaan spesifik yang ditemukan, atau kosongkan [] jika tidak ada"
+  ],
+  "same": true/false,
+  "confidence": 0-100,
+  "reason": "Penjelasan singkat keputusan akhir dalam bahasa Indonesia (maksimal 20 kata)"
+}`;
 
   const payload = {
     contents: [
@@ -1753,17 +1794,50 @@ function renderDetailAI(item, rank) {
         </div>
       `;
     } else if (item.aiVerified.same) {
+      let bioHtml = '';
+      if (item.aiVerified.biometricAnalysis) {
+        const bio = item.aiVerified.biometricAnalysis;
+        bioHtml = `
+          <div class="ai-bio-details" style="margin-top: 12px; font-size: 0.75rem; color: var(--fg-muted); text-align: left; background: rgba(168,85,247,0.04); padding: 10px; border-radius: 8px; border: 1px solid rgba(168,85,247,0.15); width: 100%;">
+            <div style="font-weight: 600; color: #a855f7; margin-bottom: 6px;">Analisis Komparatif Biometrik:</div>
+            <div style="margin-bottom: 4px;"><strong>👁️ Mata:</strong> ${esc(bio.eyes)}</div>
+            <div style="margin-bottom: 4px;"><strong>👃 Hidung:</strong> ${esc(bio.nose)}</div>
+            <div style="margin-bottom: 4px;"><strong>👄 Bibir & Rahang:</strong> ${esc(bio.mouthAndJaw)}</div>
+            <div><strong>💀 Struktur Wajah:</strong> ${esc(bio.faceShapeAndBone)}</div>
+          </div>
+        `;
+      }
       container.innerHTML = `
-        <div class="detail-ai-box match">
-          <div class="ai-box-title">AI Verified: Cocok (${item.aiVerified.confidence}%)</div>
-          <div class="ai-box-desc">${esc(item.aiVerified.reason)}</div>
+        <div class="detail-ai-box match" style="flex-wrap: wrap;">
+          <div class="ai-box-title" style="width: 100%;">AI Verified: Cocok (${item.aiVerified.confidence}%)</div>
+          <div class="ai-box-desc" style="width: 100%;">${esc(item.aiVerified.reason)}</div>
+          ${bioHtml}
         </div>
       `;
     } else {
+      let bioHtml = '';
+      if (item.aiVerified.biometricAnalysis) {
+        const bio = item.aiVerified.biometricAnalysis;
+        const diffs = item.aiVerified.differencesFound || [];
+        const diffsHtml = diffs.length > 0 
+          ? `<div style="margin-top: 6px; color: #ef4444;"><strong>⚠️ Perbedaan Terdeteksi:</strong><ul style="margin: 4px 0 0 16px; padding: 0;">${diffs.map(d => `<li>${esc(d)}</li>`).join('')}</ul></div>`
+          : '';
+        bioHtml = `
+          <div class="ai-bio-details" style="margin-top: 12px; font-size: 0.75rem; color: var(--fg-muted); text-align: left; background: rgba(239,68,68,0.04); padding: 10px; border-radius: 8px; border: 1px solid rgba(239,68,68,0.15); width: 100%;">
+            <div style="font-weight: 600; color: #ef4444; margin-bottom: 6px;">Analisis Komparatif Biometrik:</div>
+            <div style="margin-bottom: 4px;"><strong>👁️ Mata:</strong> ${esc(bio.eyes)}</div>
+            <div style="margin-bottom: 4px;"><strong>👃 Hidung:</strong> ${esc(bio.nose)}</div>
+            <div style="margin-bottom: 4px;"><strong>👄 Bibir & Rahang:</strong> ${esc(bio.mouthAndJaw)}</div>
+            <div style="margin-bottom: 4px;"><strong>💀 Struktur Wajah:</strong> ${esc(bio.faceShapeAndBone)}</div>
+            ${diffsHtml}
+          </div>
+        `;
+      }
       container.innerHTML = `
-        <div class="detail-ai-box mismatch">
-          <div class="ai-box-title">AI Verified: Tidak Cocok (${item.aiVerified.confidence}%)</div>
-          <div class="ai-box-desc">${esc(item.aiVerified.reason)}</div>
+        <div class="detail-ai-box mismatch" style="flex-wrap: wrap;">
+          <div class="ai-box-title" style="width: 100%;">AI Verified: Tidak Cocok (${item.aiVerified.confidence}%)</div>
+          <div class="ai-box-desc" style="width: 100%;">${esc(item.aiVerified.reason)}</div>
+          ${bioHtml}
         </div>
       `;
     }
@@ -1786,11 +1860,30 @@ function renderDetailAI(item, rank) {
           </div>
         `;
         try {
-          const result = await verifyFaceWithAI(item.queryFace.cropUrl, item.dataUrl);
+          // Crop the exact matching face from DB photo for precise AI comparison
+          let dbFaceCropUrl = item.dataUrl;
+          if (item.faces && item.matchFaceIdx >= 0 && item.faces[item.matchFaceIdx]) {
+            const face = item.faces[item.matchFaceIdx];
+            const faceBox = face.box;
+            const tempImg = await loadImg(item.dataUrl);
+            const W = tempImg.naturalWidth || tempImg.width;
+            const H = tempImg.naturalHeight || tempImg.height;
+            const absBox = {
+              x:      faceBox.x      * W,
+              y:      faceBox.y      * H,
+              width:  faceBox.width  * W,
+              height: faceBox.height * H
+            };
+            dbFaceCropUrl = cropFace(tempImg, absBox);
+          }
+
+          const result = await verifyFaceWithAI(item.queryFace.cropUrl, dbFaceCropUrl);
           item.aiVerified = {
             same: !!result.same,
             confidence: Number(result.confidence || 0),
-            reason: String(result.reason || '')
+            reason: String(result.reason || ''),
+            biometricAnalysis: result.biometricAnalysis || null,
+            differencesFound: result.differencesFound || null
           };
           toast('Verifikasi AI selesai!', 'success');
         } catch (err) {
