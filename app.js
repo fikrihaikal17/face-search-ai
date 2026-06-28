@@ -1403,7 +1403,18 @@ async function analyzeImageWithAI(imgDataUrl) {
     }
   }
 
-  // 2. OpenRouter paid models (Layer 2 — uses credit balance, max_tokens kecil)
+  // 2. Groq llama-4-scout (Layer 2 — vision-capable, 30K tokens/min, 500K/day)
+  if (CONFIG.GROQ_API_KEY) {
+    try {
+      console.log('Trying Groq upload analysis with model: meta-llama/llama-4-scout-17b-16e-instruct');
+      const res = await analyzeImageWithGroq(imgDataUrl, 'meta-llama/llama-4-scout-17b-16e-instruct');
+      if (res) return res;
+    } catch (err) {
+      console.warn(`Groq llama-4-scout failed: ${err.message}`);
+    }
+  }
+
+  // 3. OpenRouter paid models (Layer 3 — fallback pakai kredit)
   if (CONFIG.OPENROUTER_API_KEY) {
     const openRouterModels = [
       'meta-llama/llama-3.2-11b-vision-instruct',
@@ -1745,7 +1756,17 @@ async function verifyFaceWithAI(queryFaceUrl, dbPhotoUrl) {
     }
   }
 
-  // 2. OpenRouter paid models (Layer 2 — uses credit balance)
+  // 2. Groq llama-4-scout (Layer 2 — vision-capable multimodal, 30K tokens/min)
+  if (CONFIG.GROQ_API_KEY) {
+    try {
+      console.log('Trying Groq verification with model: meta-llama/llama-4-scout-17b-16e-instruct');
+      return await verifyWithGroq(queryFaceUrl, dbPhotoUrl, 'meta-llama/llama-4-scout-17b-16e-instruct');
+    } catch (err) {
+      console.warn(`Groq llama-4-scout verification failed: ${err.message}`);
+    }
+  }
+
+  // 3. OpenRouter paid models (Layer 3 — fallback pakai kredit)
   if (CONFIG.OPENROUTER_API_KEY) {
     const openRouterModels = [
       'meta-llama/llama-3.2-11b-vision-instruct',
@@ -1762,7 +1783,7 @@ async function verifyFaceWithAI(queryFaceUrl, dbPhotoUrl) {
     }
   }
 
-  throw new Error('Semua model AI (Gemini / OpenRouter) tidak dapat diakses saat ini.');
+  throw new Error('Semua model AI (Gemini / Groq / OpenRouter) tidak dapat diakses saat ini.');
 }
 
 function renderDetailAI(item, rank) {
