@@ -599,7 +599,9 @@ async function addSourceFiles(files) {
   updateProgressOverlay(true, 'Memuat Foto Sumber', 0, imgFiles.length, 'Membaca file...');
   let completed = 0;
 
-  const hasAI = !!(CONFIG.GROQ_API_KEY || CONFIG.GEMINI_API_KEY || CONFIG.OPENROUTER_API_KEY);
+  // NOTE: Foto source/query TIDAK perlu AI metadata analysis.
+  // AI analysis hanya untuk memperkaya database foto, bukan foto pencarian.
+  // Foto query hanya butuh deteksi wajah (descriptor) untuk proses pencarian.
 
   await parallelProcess(imgFiles, 3, async (f) => {
     try {
@@ -611,16 +613,7 @@ async function addSourceFiles(files) {
       // Store smaller version for display
       const dataUrl    = resizeImageMax(rawImgEl, 1024);
 
-      let groqMeta = null;
-      if (hasAI) {
-        try {
-          groqMeta = await analyzeImageWithAI(dataUrl);
-        } catch (e) {
-          console.error('AI Vision query indexing error:', e);
-        }
-      }
-
-      const src = { id: ++srcIdCounter, filename: f.name, dataUrl, imgEl: detectEl, faceCount: 0, error: null, groqMeta };
+      const src = { id: ++srcIdCounter, filename: f.name, dataUrl, imgEl: detectEl, faceCount: 0, error: null, groqMeta: null };
       qbState.sources.push(src);
     } catch(err) {
       const src = { id: ++srcIdCounter, filename: f.name, dataUrl: '', imgEl: null, faceCount: 0, error: err.message };
@@ -1390,8 +1383,9 @@ async function analyzeImageWithGemini(imgDataUrl, modelName = "gemini-2.5-flash"
 
 async function analyzeImageWithAI(imgDataUrl) {
   // 1. Gemini (Layer 1 — reliable, free quota)
+  // gemini-flash-lite-latest diprioritaskan karena free tier lebih besar
   if (CONFIG.GEMINI_API_KEY) {
-    const geminiModels = ['gemini-2.0-flash', 'gemini-flash-lite-latest', 'gemini-2.5-flash'];
+    const geminiModels = ['gemini-flash-lite-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'];
     for (const model of geminiModels) {
       try {
         console.log(`Trying Gemini upload analysis with model: ${model}`);
@@ -1744,8 +1738,9 @@ Wajib keluarkan output dalam format JSON valid berikut (tanpa pembungkus markdow
 
 async function verifyFaceWithAI(queryFaceUrl, dbPhotoUrl) {
   // 1. Gemini (Layer 1 — reliable, free quota)
+  // gemini-flash-lite-latest diprioritaskan karena free tier lebih besar
   if (CONFIG.GEMINI_API_KEY) {
-    const geminiModels = ['gemini-2.0-flash', 'gemini-flash-lite-latest', 'gemini-2.5-flash'];
+    const geminiModels = ['gemini-flash-lite-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'];
     for (const model of geminiModels) {
       try {
         console.log(`Trying Gemini verification with model: ${model}`);
