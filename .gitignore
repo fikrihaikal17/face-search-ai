@@ -1,0 +1,10 @@
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# Project configurations
+config.json
+config.js
+config.local.js
+

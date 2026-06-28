@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FaceSearch AI — Mesin Pencari Wajah</title>
+  <meta name="description" content="Upload folder foto, pilih wajah yang ingin dicari, dan temukan semua foto serupa menggunakan AI face recognition dengan akurasi tinggi." />
+  <link rel="stylesheet" href="style.css?v=2.1" />
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+</head>
+<body>
+
+<!-- ═══════════ LOADING OVERLAY ═══════════ -->
+<div id="loading-overlay">
+  <div class="lo-brand">FaceSearch<span style="background:linear-gradient(90deg,#22d3ee,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">AI</span></div>
+  <div class="lo-ring"></div>
+  <p class="lo-text" id="lo-text">Menginisialisasi…</p>
+  <div class="lo-steps">
+    <div class="lo-step" id="lo-s0"></div>
+    <div class="lo-step" id="lo-s1"></div>
+    <div class="lo-step" id="lo-s2"></div>
+  </div>
+  <div class="lo-bar-wrap">
+    <div class="lo-bar" id="lo-bar"></div>
+  </div>
+</div>
+
+<!-- ═══════════ APP ═══════════ -->
+<div id="app">
+
+  <!-- ── HEADER ── -->
+  <header class="app-header">
+    <div class="h-brand">
+      <div class="h-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="stroke: #fff;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      </div>
+      <h1 class="h-title">Face<em>Search</em><span class="h-tag">AI v2.0</span></h1>
+    </div>
+
+    <div class="h-stats">
+      <div>
+        <div class="h-stat-v" id="stat-db">0</div>
+        <div class="h-stat-l">Foto DB</div>
+      </div>
+      <div>
+        <div class="h-stat-v" id="stat-faces">0</div>
+        <div class="h-stat-l">Wajah Query</div>
+      </div>
+      <div>
+        <div class="h-stat-v" id="stat-results">—</div>
+        <div class="h-stat-l">Hasil</div>
+      </div>
+      <div>
+        <div class="h-stat-v" id="stat-top">—</div>
+        <div class="h-stat-l">Top Match</div>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <button class="btn btn-ghost btn-sm" id="btn-privacy" title="Kebijakan Privasi">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="stroke: var(--p-light);"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+        <span>Privasi</span>
+      </button>
+      <button class="btn btn-ghost btn-sm" id="btn-tutorial" title="Panduan Penggunaan">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="stroke: var(--p-light);"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        <span>Panduan</span>
+      </button>
+      <div class="h-model" id="h-model">
+        <div class="h-model-dot" id="h-dot"></div>
+        <span id="h-model-txt">Memuat model…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── MAIN 3-COL LAYOUT ── -->
+  <div class="main-layout">
+
+    <!-- ══════ KIRI — DATABASE ══════ -->
+    <aside class="panel panel-border-r panel-bg-surface active-panel" id="panel-db">
+      <div class="panel-head">
+        <div class="panel-head-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: middle; stroke: var(--p-light);"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+          Database Foto
+        </div>
+        <div class="panel-head-actions">
+          <span id="db-count-badge" style="font-size:.68rem;font-family:var(--mono);color:var(--tx-3);padding:2px 6px;"></span>
+          <button class="btn btn-icon btn-ghost" id="btn-db-clear" title="Hapus semua">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="stroke: var(--danger);"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- DB Upload -->
+      <div class="db-upload-zone" id="db-drop" title="Upload folder atau file foto ke database">
+        <div class="db-upload-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="stroke: var(--p-light);"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+        </div>
+        <p class="db-upload-text">
+          <strong>Seret Folder / Foto</strong> ke sini<br/>
+          <small style="color:var(--tx-3)">atau pilih sumber di bawah:</small>
+        </p>
+        <div class="db-upload-btns" style="display:flex;gap:6px;justify-content:center;margin-top:12px;">
+          <button class="btn btn-primary btn-sm" id="btn-db-folder" type="button">Pilih Folder</button>
+          <button class="btn btn-ghost btn-sm" id="btn-db-files" type="button">Pilih File</button>
+        </div>
+        <input type="file" id="db-file-input" accept="image/*" multiple style="display:none" />
+        <input type="file" id="db-folder-input" accept="image/*" multiple webkitdirectory style="display:none" />
+      </div>
+
+      <!-- DB Grid -->
+      <div class="panel-scroll" id="db-scroll">
+        <div class="db-grid-wrap">
+          <div class="db-grid-empty" id="db-empty">
+            <div class="db-grid-empty-ico">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="stroke: var(--tx-3); opacity: 0.45;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+            </div>
+            <p class="db-grid-empty-txt">Database kosong.<br/>Upload foto yang ingin diindex.</p>
+          </div>
+          <div class="db-grid" id="db-grid" style="display:none;"></div>
+        </div>
+      </div>
+
+      <!-- DB Footer -->
+      <div class="db-footer">
+        <button class="btn btn-ghost btn-sm" id="btn-db-export">Export</button>
+        <button class="btn btn-ghost btn-sm" id="btn-db-import">Import</button>
+        <input type="file" id="import-input" accept=".json" style="display:none" />
+      </div>
+    </aside>
+
+    <!-- ══════ TENGAH — QUERY BUILDER ══════ -->
+    <section class="panel panel-border-r panel-bg-base" id="panel-query">
+      <div class="panel-head">
+        <div class="panel-head-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: middle; stroke: var(--p-light);"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+          Query Builder
+        </div>
+        <div class="panel-head-actions">
+          <button class="btn btn-ghost btn-sm" id="btn-qb-clear">Reset</button>
+        </div>
+      </div>
+
+      <!-- Scrollable body -->
+      <div class="qb-scroll" id="qb-scroll">
+        <div class="qb-body">
+
+          <!-- 1. Source Upload -->
+          <div class="src-dropzone" id="src-drop">
+            <div class="src-dz-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="stroke: var(--p-light);"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+            </div>
+            <p class="src-dz-title">Upload Foto Sumber</p>
+            <p class="src-dz-sub">
+              Seret Folder atau Foto ke sini untuk mendeteksi semua wajah secara otomatis.
+            </p>
+            <div class="src-dz-tags">
+              <span class="src-dz-tag">JPG</span>
+              <span class="src-dz-tag">PNG</span>
+              <span class="src-dz-tag">WEBP</span>
+              <span class="src-dz-tag">Multi-file</span>
+              <span class="src-dz-tag">Folder</span>
+            </div>
+            <div class="src-dz-btns">
+              <button class="btn btn-primary" id="btn-src-folder" type="button">Pilih Folder</button>
+              <button class="btn btn-ghost"   id="btn-src-files" type="button">Pilih File</button>
+              <button class="btn btn-ghost"   id="btn-src-webcam" type="button">Webcam</button>
+            </div>
+            <input type="file" id="src-file-input"   accept="image/*" multiple style="display:none" />
+            <input type="file" id="src-folder-input" accept="image/*" multiple webkitdirectory style="display:none" />
+          </div>
+
+          <!-- 2. Source Images Strip (shown after upload) -->
+          <div class="src-strip" id="src-strip">
+            <div class="src-strip-head">
+              <span class="src-strip-label" id="src-strip-label">0 foto sumber</span>
+              <div style="display:flex;gap:5px;">
+                <button class="btn btn-ghost btn-xs" id="btn-src-add">+ Tambah</button>
+                <button class="btn btn-danger btn-xs" id="btn-src-clear">✕</button>
+              </div>
+            </div>
+            <div class="src-thumbs" id="src-thumbs"></div>
+          </div>
+
+          <!-- Divider -->
+          <div class="section-label" id="faces-divider" style="display:none;">
+            Wajah Terdeteksi
+          </div>
+
+          <!-- 3. Face Gallery -->
+          <div class="face-gallery" id="face-gallery">
+            <div class="face-gallery-head">
+              <span class="face-gallery-count">
+                <strong id="fg-count">0</strong> wajah ditemukan
+              </span>
+              <div class="face-gallery-actions">
+                <button class="btn btn-ghost btn-xs" id="btn-fg-all">Pilih Semua</button>
+                <button class="btn btn-ghost btn-xs" id="btn-fg-none">Hapus Pilihan</button>
+              </div>
+            </div>
+
+            <!-- Processing indicator for face detection -->
+            <div id="fg-loading" style="display:none;padding:24px;text-align:center;color:var(--tx-3);font-size:.8rem;">
+              <div style="width:32px;height:32px;border:2px solid var(--bd);border-top-color:var(--p);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 10px;"></div>
+              Mendeteksi wajah…
+            </div>
+
+            <div class="face-grid" id="face-grid"></div>
+          </div>
+
+          <!-- 4. Selection summary -->
+          <div class="selection-bar" id="sel-bar">
+            <div class="sel-info">
+              <strong id="sel-count">0</strong> wajah dipilih untuk dicari
+            </div>
+            <div class="sel-chips" id="sel-chips"></div>
+          </div>
+
+          <!-- 5. Controls -->
+          <div class="qb-controls">
+            <div class="threshold-row">
+              <div class="threshold-label-row">
+                <span>Minimum Similarity</span>
+                <span class="tval" id="tval">40%</span>
+              </div>
+              <input type="range" id="threshold" min="0" max="99" value="40"
+                     aria-label="Minimum similarity threshold" />
+            </div>
+
+            <div class="ai-toggle-row">
+              <div class="ai-toggle-info">
+                <span class="ai-toggle-title">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="stroke:#a855f7; fill:rgba(168,85,247,0.1); vertical-align:middle; margin-top:-2px;"><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+                  Verifikasi Asisten AI Groq
+                </span>
+                <span class="ai-toggle-desc">Validasi wajah dengan model Llama 3.2 Vision</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="chk-groq-ai">
+                <span class="slider round"></span>
+              </label>
+            </div>
+
+            <button class="btn-search-main" id="btn-search" disabled>
+              <span id="btn-search-ico">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="stroke: #fff; vertical-align: middle;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              </span>
+              <span id="btn-search-txt">Cari Wajah Paling Mirip</span>
+            </button>
+
+            <button class="btn-webcam" id="btn-qb-webcam">
+              Gunakan Webcam sebagai Query
+            </button>
+          </div>
+
+        </div><!-- /qb-body -->
+      </div><!-- /qb-scroll -->
+    </section>
+
+    <!-- ══════ KANAN — HASIL SEARCH ══════ -->
+    <section class="panel panel-bg-surface" id="panel-results">
+      <div class="panel-head">
+        <div class="panel-head-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: middle; stroke: var(--p-light);"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+          Hasil Pencarian
+        </div>
+        <div class="panel-head-actions">
+          <button class="btn btn-icon btn-ghost" id="btn-copy" title="Salin hasil">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Sub-header: count + sort -->
+      <div class="res-subhead">
+        <div class="res-count">
+          <strong id="cnt-shown">0</strong> / <strong id="cnt-total">0</strong> foto
+        </div>
+        <div class="res-sort">
+          <button class="sort-pill active" data-sort="sim">% Mirip</button>
+          <button class="sort-pill"        data-sort="name">Nama</button>
+        </div>
+      </div>
+
+      <!-- Scroll area -->
+      <div class="res-scroll" id="res-scroll">
+        <!-- Empty state -->
+        <div class="res-empty" id="res-empty">
+          <div class="res-empty-ico">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="stroke: var(--tx-3); opacity: 0.5;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          </div>
+          <p class="res-empty-title">Belum ada hasil</p>
+          <p class="res-empty-sub">
+            Tambah foto ke Database, upload foto sumber, pilih wajah, lalu klik <strong>Cari</strong>.
+          </p>
+        </div>
+
+        <!-- Processing -->
+        <div class="res-processing" id="res-proc">
+          <div class="proc-ring"></div>
+          <p class="proc-text" id="proc-txt">Menganalisis…</p>
+        </div>
+
+        <!-- Results -->
+        <div class="res-list" id="res-list" style="display:none;"></div>
+      </div>
+    </section>
+
+  </div><!-- /main-layout -->
+
+  <!-- ── MOBILE BOTTOM NAVIGATION ── -->
+  <nav class="mobile-tabs" id="mobile-tabs">
+    <button class="tab-btn active" data-tab="panel-db">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+      <span>Database</span>
+    </button>
+    <button class="tab-btn" data-tab="panel-query">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+      <span>Query</span>
+    </button>
+    <button class="tab-btn" data-tab="panel-results">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+      <span>Hasil</span>
+    </button>
+  </nav>
+
+  <!-- ── FOOTER ── -->
+  <footer class="app-footer">
+    <div class="f-copyright">
+      &copy; 2026 FaceSearch AI. Developed by <a href="https://www.instagram.com/fikrii_haikalll17/" target="_blank" rel="noopener noreferrer" class="f-link">Muhammad Fikri Haikal</a>
+    </div>
+  </footer>
+</div><!-- /app -->
+
+<!-- ═══════════ PRIVACY MODAL ═══════════ -->
+<div class="modal-bg" id="modal-privacy">
+  <div class="modal-box" style="max-width: 600px;">
+    <div class="modal-top">
+      <div>
+        <div class="modal-title">Kebijakan Privasi</div>
+        <div class="modal-sub">Bagaimana kami melindungi data dan foto Anda</div>
+      </div>
+      <button class="modal-close" id="privacy-close">✕</button>
+    </div>
+    <div class="privacy-scroll">
+      <div class="privacy-section">
+        <div class="privacy-section-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+        </div>
+        <div>
+          <h4>Data 100% Tersimpan Lokal</h4>
+          <p>Semua foto yang Anda unggah <strong>tidak pernah dikirim ke server manapun</strong>. Seluruh proses deteksi, penyimpanan database, dan pencarian wajah berjalan sepenuhnya di dalam browser Anda menggunakan teknologi <em>IndexedDB</em> dan <em>TensorFlow.js WebGL</em>.</p>
+        </div>
+      </div>
+      <div class="privacy-section">
+        <div class="privacy-section-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        </div>
+        <div>
+          <h4>Tidak Ada Akun atau Login</h4>
+          <p>Aplikasi ini tidak memerlukan pembuatan akun, login, atau pendaftaran apapun. Kami tidak mengumpulkan nama, email, atau identitas pribadi Anda dalam bentuk apapun.</p>
+        </div>
+      </div>
+      <div class="privacy-section">
+        <div class="privacy-section-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"></path><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line></svg>
+        </div>
+        <div>
+          <h4>Foto Tidak Meninggalkan Perangkat</h4>
+          <p>Foto-foto yang diproses untuk membangun database maupun foto query yang dicari, semuanya hanya diproses di memori browser Anda. Tidak ada transmisi gambar ke internet. Saat Anda menutup browser dan menghapus data situs, semua data hilang sepenuhnya.</p>
+        </div>
+      </div>
+      <div class="privacy-section">
+        <div class="privacy-section-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+        </div>
+        <div>
+          <h4>Model AI Berjalan di Browser</h4>
+          <p>Model kecerdasan buatan yang digunakan (<em>face-api.js</em>) dimuat dari server CDN hanya sekali pada saat pertama kali halaman dibuka, kemudian berjalan sepenuhnya secara offline di perangkat Anda. Tidak ada gambar atau data wajah yang dikirim ke penyedia model AI.</p>
+        </div>
+      </div>
+      <div class="privacy-section">
+        <div class="privacy-section-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        </div>
+        <div>
+          <h4>Perhatikan Penggunaan yang Bijak</h4>
+          <p>Aplikasi ini dirancang untuk penggunaan pribadi yang bertanggung jawab, seperti mengorganisir koleksi foto keluarga. Pengguna bertanggung jawab penuh atas foto yang diunggah dan penggunaan fitur pencarian wajah sesuai dengan peraturan hukum yang berlaku.</p>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex; gap:10px; margin-top:20px; justify-content:flex-end;">
+      <button class="btn btn-primary" id="privacy-close2" style="padding: 10px 24px;">Saya Mengerti</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ DETAIL MODAL ═══════════ -->
+<div class="modal-bg" id="modal-detail">
+  <div class="modal-box">
+    <div class="modal-top">
+      <div>
+        <div class="modal-title" id="modal-name">—</div>
+        <div class="modal-sub"  id="modal-sub">—</div>
+      </div>
+      <button class="modal-close" id="modal-close">✕</button>
+    </div>
+    <div style="display:flex; justify-content:center; width:100%; margin-bottom:18px;">
+      <div class="modal-img-wrap" style="position:relative; display:inline-block; max-width:100%; border-radius:var(--r-lg); overflow:hidden; background:var(--bg-elevated);">
+        <img id="modal-img" class="modal-img" src="" alt="Detail" style="display:block; max-width:100%; max-height:450px; width:auto; height:auto; border-radius:var(--r-lg); border:1px solid var(--bd); margin-bottom:0; object-fit:contain;" />
+        <div id="modal-face-container" style="position:absolute; inset:0; pointer-events:none; z-index:5;"></div>
+      </div>
+    </div>
+    <div class="modal-stats">
+      <div class="modal-stat">
+        <div class="modal-stat-v grad-text" id="modal-score">—</div>
+        <div class="modal-stat-l">Similarity</div>
+      </div>
+      <div class="modal-stat">
+        <div class="modal-stat-v" id="modal-dist" style="color:var(--s)">—</div>
+        <div class="modal-stat-l">Distance</div>
+      </div>
+      <div class="modal-stat">
+        <div class="modal-stat-v" id="modal-rank" style="color:var(--warning)">—</div>
+        <div class="modal-stat-l">Ranking</div>
+      </div>
+    </div>
+    <div id="modal-ai-result" style="margin-bottom:16px;"></div>
+    <div id="modal-badge" style="margin-bottom:16px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-danger" id="modal-del" style="flex:1">Hapus dari Database</button>
+      <button class="btn btn-ghost"  id="modal-close2" style="flex:1">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ WEBCAM MODAL ═══════════ -->
+<div class="modal-bg" id="modal-webcam">
+  <div class="modal-box">
+    <div class="modal-top">
+      <div>
+        <div class="modal-title">Webcam</div>
+        <div class="modal-sub">Ambil foto wajah secara langsung</div>
+      </div>
+      <button class="modal-close" id="wcam-close">✕</button>
+    </div>
+    <div class="webcam-container" style="position:relative;">
+      <video id="wcam-video" class="webcam-video" autoplay muted playsinline></video>
+      <canvas id="wcam-canvas-overlay" class="webcam-canvas-overlay"></canvas>
+      <div class="webcam-overlay">
+        <div class="webcam-face-guide"></div>
+      </div>
+      <!-- Auto Capture Countdown Element -->
+      <div id="wcam-countdown" style="position:absolute; inset:0; display:none; align-items:center; justify-content:center; font-size:6rem; font-weight:900; color:#22d3ee; text-shadow:0 0 24px rgba(34,211,238,0.85); pointer-events:none; z-index:15; animation: scaleUp 0.15s ease;"></div>
+    </div>
+    <canvas id="wcam-canvas" style="display:none;"></canvas>
+    
+    <!-- Auto Capture Toggle -->
+    <div style="display:flex; gap:10px; margin: 12px 0; align-items:center; justify-content:center;">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.78rem; color:var(--tx-2); user-select:none;">
+        <input type="checkbox" id="wcam-auto-capture" checked style="accent-color:#22d3ee; width:15px; height:15px; cursor:pointer;" />
+        <span>Auto Capture (3 Detik jika wajah terdeteksi)</span>
+      </label>
+    </div>
+
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-primary" id="wcam-capture" style="flex:1">Ambil Foto</button>
+      <button class="btn btn-ghost" id="wcam-mirror" title="Cermin Kamera" style="flex:0 0 44px; padding:0; display:flex; align-items:center; justify-content:center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M4 12H2m20 0h-2M7 7l-5 5 5 5M17 7l5 5-5 5"/></svg>
+      </button>
+      <button class="btn btn-ghost"   id="wcam-stop"    style="flex:1">Stop</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ TUTORIAL MODAL ═══════════ -->
+<div class="modal-bg" id="modal-tutorial">
+  <div class="modal-box" style="max-width: 580px;">
+    <div class="modal-top">
+      <div>
+        <div class="modal-title">Panduan Penggunaan</div>
+        <div class="modal-sub">Alur kerja sistem FaceSearch AI v2.0</div>
+      </div>
+      <button class="modal-close" id="tutorial-close">✕</button>
+    </div>
+    <div class="tutorial-steps">
+      <div class="tutorial-step">
+        <div class="t-step-num">1</div>
+        <div class="t-step-content">
+          <h4>Upload Database Foto</h4>
+          <p>Masukkan foto koleksi Anda ke database melalui panel kiri. Seret folder penuh berisi foto atau gunakan opsi pilih file/folder. Sistem akan mengompresi dan memproses foto secara paralel super cepat.</p>
+        </div>
+      </div>
+      <div class="tutorial-step">
+        <div class="t-step-num">2</div>
+        <div class="t-step-content">
+          <h4>Pilih Wajah Query (Target)</h4>
+          <p>Unggah foto target atau gunakan Webcam di panel tengah. Sistem akan memotong (crop) setiap wajah yang terdeteksi dan menampilkannya di daftar wajah target.</p>
+        </div>
+      </div>
+      <div class="tutorial-step">
+        <div class="t-step-num">3</div>
+        <div class="t-step-content">
+          <h4>Klik Wajah untuk Mencari</h4>
+          <p>Pilih satu atau beberapa wajah query target yang ingin Anda temukan kecocokannya dengan mengekliknya, lalu atur threshold kemiripan wajah.</p>
+        </div>
+      </div>
+      <div class="tutorial-step">
+        <div class="t-step-num">4</div>
+        <div class="t-step-content">
+          <h4>Lihat Hasil Pencocokan</h4>
+          <p>Hasil foto yang memiliki kemiripan wajah akan ditampilkan di panel kanan beserta skor persentasenya. Klik foto hasil untuk melihat detail atau menghapusnya.</p>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex; gap:10px; margin-top:20px; justify-content:flex-end;">
+      <button class="btn btn-primary" id="tutorial-close2" style="padding: 10px 24px;">Saya Mengerti</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ PROGRESS OVERLAY ═══════════ -->
+<div id="progress-overlay" class="hidden">
+  <div class="progress-box">
+    <div class="progress-title" id="progress-title">Memproses Foto…</div>
+    <div class="progress-sub" id="progress-sub">0 dari 0 file (0%)</div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+    <div class="progress-status" id="progress-status">Menganalisis wajah…</div>
+  </div>
+</div>
+
+<!-- ═══════════ TOAST ═══════════ -->
+<div id="toast-container"></div>
+
+<!-- ═══════════ CUSTOM CONFIRM DIALOG ═══════════ -->
+<div class="modal-bg" id="modal-confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+  <div class="confirm-box">
+    <div class="confirm-icon-wrap" id="confirm-icon-wrap">
+      <svg id="confirm-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+        <line x1="12" y1="9" x2="12" y2="13"></line>
+        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+      </svg>
+    </div>
+    <div id="confirm-title" class="confirm-title">Konfirmasi</div>
+    <div id="confirm-message" class="confirm-message">Apakah Anda yakin?</div>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost confirm-btn-cancel" id="confirm-cancel">Batal</button>
+      <button class="btn confirm-btn-ok" id="confirm-ok">Hapus</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden processing image -->
+<img id="proc-img" style="display:none;position:absolute;top:-9999px;" alt="" crossorigin="anonymous" />
+
+<script src="app.js"></script>
+</body>
+</html>
