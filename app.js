@@ -32,7 +32,8 @@ const CROP_SIZE  = 128; // px for thumbnail
 // ─── State ───────────────────────────────────────────────
 const CONFIG = {
   GROQ_API_KEY: '',
-  GEMINI_API_KEY: ''
+  GEMINI_API_KEY: '',
+  OPENROUTER_API_KEY: ''
 };
 let idb         = null;   // IndexedDB
 let modelsReady = false;
@@ -514,8 +515,7 @@ async function addFilesToDB(files) {
   updateProgressOverlay(true, 'Menambahkan ke Database Foto', 0, imgFiles.length, 'Memulai...');
   let ok = 0, skip = 0, completed = 0;
 
-  const chkGroq = document.getElementById('chk-groq-ai');
-  const useGroq = chkGroq && chkGroq.checked && (CONFIG.GROQ_API_KEY || CONFIG.GEMINI_API_KEY);
+  const hasAI = !!(CONFIG.GROQ_API_KEY || CONFIG.GEMINI_API_KEY || CONFIG.OPENROUTER_API_KEY);
 
   // Process up to 3 files in parallel
   await parallelProcess(imgFiles, 3, async (f) => {
@@ -548,7 +548,7 @@ async function addFilesToDB(files) {
         });
 
         let groqMeta = null;
-        if (useGroq) {
+        if (hasAI) {
           try {
             groqMeta = await analyzeImageWithAI(dataUrl);
           } catch (e) {
@@ -587,8 +587,7 @@ async function addSourceFiles(files) {
   updateProgressOverlay(true, 'Memuat Foto Sumber', 0, imgFiles.length, 'Membaca file...');
   let completed = 0;
 
-  const chkGroq = document.getElementById('chk-groq-ai');
-  const useGroq = chkGroq && chkGroq.checked && (CONFIG.GROQ_API_KEY || CONFIG.GEMINI_API_KEY);
+  const hasAI = !!(CONFIG.GROQ_API_KEY || CONFIG.GEMINI_API_KEY || CONFIG.OPENROUTER_API_KEY);
 
   await parallelProcess(imgFiles, 3, async (f) => {
     try {
@@ -601,7 +600,7 @@ async function addSourceFiles(files) {
       const dataUrl    = resizeImageMax(rawImgEl, 1024);
 
       let groqMeta = null;
-      if (useGroq) {
+      if (hasAI) {
         try {
           groqMeta = await analyzeImageWithAI(dataUrl);
         } catch (e) {
@@ -806,7 +805,7 @@ async function runSearch() {
   const maxDist    = sim2dist(threshold);
 
   const chkGroq = document.getElementById('chk-groq-ai');
-  const useGroq = chkGroq && chkGroq.checked && (CONFIG.GROQ_API_KEY || CONFIG.GEMINI_API_KEY);
+  const useGroq = chkGroq && chkGroq.checked && (CONFIG.GROQ_API_KEY || CONFIG.GEMINI_API_KEY || CONFIG.OPENROUTER_API_KEY);
 
   // Get selected face descriptors
   const queryFaces = qbState.faces.filter(f => qbState.selected.has(f.id));
@@ -1376,7 +1375,40 @@ async function analyzeImageWithGemini(imgDataUrl, modelName = "gemini-2.5-flash"
 }
 
 async function analyzeImageWithAI(imgDataUrl) {
-  // 1. Try Gemini Models (highly stable, active, and fully functional)
+  // 1. Try OpenRouter Models first (highest priority, most tokens/models)
+  if (CONFIG.OPENROUTER_API_KEY) {
+    const openRouterModels = [
+      'meta-llama/llama-3.2-11b-vision-instruct',
+      'meta-llama/llama-3.2-90b-vision-instruct',
+      'google/gemini-2.5-flash',
+      'qwen/qwen-2-vl-7b-instruct'
+    ];
+    for (const model of openRouterModels) {
+      try {
+        console.log(`Trying OpenRouter upload analysis with model: ${model}`);
+        const res = await analyzeImageWithOpenRouter(imgDataUrl, model);
+        if (res) return res;
+      } catch (err) {
+        console.warn(`OpenRouter model ${model} failed, trying next fallback...`);
+      }
+    }
+  }
+
+  // 2. Try Groq Models (Layer 1 fallback)
+  if (CONFIG.GROQ_API_KEY) {
+    const groqModels = ['llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview', 'qwen/qwen3.6-27b', 'meta-llama/llama-4-scout-17b-16e-instruct'];
+    for (const model of groqModels) {
+      try {
+        console.log(`Trying Groq upload analysis with model: ${model}`);
+        const res = await analyzeImageWithGroq(imgDataUrl, model);
+        if (res) return res;
+      } catch (err) {
+        console.warn(`Groq model ${model} failed, trying next fallback...`);
+      }
+    }
+  }
+
+  // 3. Try Gemini Models (Layer 2 fallback)
   if (CONFIG.GEMINI_API_KEY) {
     const geminiModels = ['gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash'];
     for (const model of geminiModels) {
@@ -1390,26 +1422,134 @@ async function analyzeImageWithAI(imgDataUrl) {
     }
   }
 
-  // 2. Try Groq Models (as secondary backup)
-  if (CONFIG.GROQ_API_KEY) {
-    const groqModels = ['qwen/qwen3.6-27b', 'meta-llama/llama-4-scout-17b-16e-instruct'];
-    for (const model of groqModels) {
-      try {
-        console.log(`Trying Groq upload analysis with model: ${model}`);
-        const res = await analyzeImageWithGroq(imgDataUrl, model);
-        if (res) return res;
-      } catch (err) {
-        console.warn(`Groq model ${model} failed, trying next fallback...`);
-      }
-    }
-  }
-
   return null;
 }
 
 // ═══════════════════════════════════════════════════════
-// CLOUD VISION VERIFICATION (Groq / Gemini)
+// CLOUD VISION VERIFICATION (OpenRouter / Groq / Gemini)
 // ═══════════════════════════════════════════════════════
+async function verifyWithOpenRouter(queryFaceUrl, dbPhotoUrl, modelName = "meta-llama/llama-3.2-11b-vision-instruct") {
+  const apiKey = CONFIG.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error('OpenRouter API Key tidak ditemukan.');
+
+  const verifyPrompt = `Kamu adalah sistem verifikasi identitas biometrik presisi tinggi.
+Gambar 1 = WAJAH REFERENSI (kueri pencarian). Gambar 2 = WAJAH KANDIDAT dari database.
+Apakah kedua gambar ini menampilkan orang yang SAMA PERSIS?
+
+Analisis SANGAT KETAT berdasarkan struktur wajah yang tidak berubah:
+- Bentuk & proporsi wajah (oval/bulat/persegi/lonjong)
+- Jarak antar mata, lebar hidung, bentuk dagu, lebar dahi
+- Lekukan pipi, posisi tulang pipi, bentuk alis
+- Rasio panjang wajah vs lebar
+
+ABAIKAN: sudut kamera, pencahayaan, ekspresi, kacamata, hijab, jenggot, riasan — fokus HANYA pada STRUKTUR TULANG WAJAH.
+
+Jika ada keraguan sedikit pun bahwa ini orang berbeda, set same=false.
+Output HANYA JSON: {"same": boolean, "confidence": 0-100, "reason": "max 20 kata bahasa Indonesia"}`;
+
+  const payload = {
+    model: modelName,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: verifyPrompt
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: queryFaceUrl
+            }
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: dbPhotoUrl
+            }
+          }
+        ]
+      }
+    ],
+    temperature: 0.05
+  };
+
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://github.com/fikrihaikal17/face-search-ai',
+      'X-Title': 'Face Search AI'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.error?.message || `HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  const text = data.choices[0].message.content.trim();
+  const cleanJson = text.replace(/```json|```/g, '').trim();
+  return JSON.parse(cleanJson);
+}
+
+async function analyzeImageWithOpenRouter(imgDataUrl, modelName = "meta-llama/llama-3.2-11b-vision-instruct") {
+  const apiKey = CONFIG.OPENROUTER_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const payload = {
+      model: modelName,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Analisis gambar ini. Jika terdapat wajah manusia, identifikasi karakteristik visual utamanya. Wajib output dalam format JSON mentah tanpa markdown: {\"hasFace\": true/false, \"faceCount\": 0, \"gender\": \"pria\"|\"wanita\"|\"keduanya\"|\"tidak_ada\", \"details\": \"deskripsi singkat pakaian, kacamata, hijab, warna rambut (maksimal 15 kata)\"}"
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: imgDataUrl
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.1
+    };
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://github.com/fikrihaikal17/face-search-ai',
+        'X-Title': 'Face Search AI'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error?.message || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const text = data.choices[0].message.content.trim();
+    const cleanJson = text.replace(/```json|```/g, '').trim();
+    return JSON.parse(cleanJson);
+  } catch (err) {
+    console.warn(`OpenRouter Vision upload analysis failed for ${modelName}:`, err.message);
+    throw err;
+  }
+}
+
 async function verifyWithGroq(queryFaceUrl, dbPhotoUrl, modelName = "qwen/qwen3.6-27b") {
   const apiKey = CONFIG.GROQ_API_KEY;
   if (!apiKey) throw new Error('Groq API Key tidak ditemukan.');
@@ -1546,7 +1686,38 @@ Output HANYA JSON: {"same": boolean, "confidence": 0-100, "reason": "max 20 kata
 }
 
 async function verifyFaceWithAI(queryFaceUrl, dbPhotoUrl) {
-  // 1. Try Gemini Models (highly stable, active, and fully functional)
+  // 1. Try OpenRouter Models first (highest priority, most tokens/models)
+  if (CONFIG.OPENROUTER_API_KEY) {
+    const openRouterModels = [
+      'meta-llama/llama-3.2-11b-vision-instruct',
+      'meta-llama/llama-3.2-90b-vision-instruct',
+      'google/gemini-2.5-flash',
+      'qwen/qwen-2-vl-7b-instruct'
+    ];
+    for (const model of openRouterModels) {
+      try {
+        console.log(`Trying OpenRouter verification with model: ${model}`);
+        return await verifyWithOpenRouter(queryFaceUrl, dbPhotoUrl, model);
+      } catch (err) {
+        console.warn(`OpenRouter Vision model ${model} failed: ${err.message}`);
+      }
+    }
+  }
+
+  // 2. Try Groq Models (Layer 1 fallback)
+  if (CONFIG.GROQ_API_KEY) {
+    const groqModels = ['llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview', 'qwen/qwen3.6-27b', 'meta-llama/llama-4-scout-17b-16e-instruct'];
+    for (const model of groqModels) {
+      try {
+        console.log(`Trying Groq verification with model: ${model}`);
+        return await verifyWithGroq(queryFaceUrl, dbPhotoUrl, model);
+      } catch (err) {
+        console.warn(`Groq Vision model ${model} failed: ${err.message}`);
+      }
+    }
+  }
+
+  // 3. Try Gemini Models (Layer 2 fallback)
   if (CONFIG.GEMINI_API_KEY) {
     const geminiModels = ['gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash'];
     for (const model of geminiModels) {
@@ -1559,20 +1730,7 @@ async function verifyFaceWithAI(queryFaceUrl, dbPhotoUrl) {
     }
   }
 
-  // 2. Try Groq Models (as secondary backup)
-  if (CONFIG.GROQ_API_KEY) {
-    const groqModels = ['qwen/qwen3.6-27b', 'meta-llama/llama-4-scout-17b-16e-instruct'];
-    for (const model of groqModels) {
-      try {
-        console.log(`Trying Groq verification with model: ${model}`);
-        return await verifyWithGroq(queryFaceUrl, dbPhotoUrl, model);
-      } catch (err) {
-        console.warn(`Groq Vision model ${model} failed: ${err.message}`);
-      }
-    }
-  }
-
-  throw new Error('Semua model AI (Gemini / Groq) mengalami gangguan atau tidak dapat diakses saat ini.');
+  throw new Error('Semua model AI (OpenRouter / Groq / Gemini) mengalami gangguan atau tidak dapat diakses saat ini.');
 }
 
 function renderDetailAI(item, rank) {
@@ -2290,11 +2448,13 @@ async function loadEnv() {
       if (data) {
         if (data.GROQ_API_KEY)  CONFIG.GROQ_API_KEY  = data.GROQ_API_KEY;
         if (data.GEMINI_API_KEY) CONFIG.GEMINI_API_KEY = data.GEMINI_API_KEY;
-        configLoaded = !!(CONFIG.GROQ_API_KEY || CONFIG.GEMINI_API_KEY);
+        if (data.OPENROUTER_API_KEY) CONFIG.OPENROUTER_API_KEY = data.OPENROUTER_API_KEY;
+        configLoaded = !!(CONFIG.GROQ_API_KEY || CONFIG.GEMINI_API_KEY || CONFIG.OPENROUTER_API_KEY);
         if (configLoaded) {
           const keys = [];
           if (CONFIG.GROQ_API_KEY)   keys.push('Groq');
           if (CONFIG.GEMINI_API_KEY) keys.push('Gemini');
+          if (CONFIG.OPENROUTER_API_KEY) keys.push('OpenRouter');
           console.log(`API Keys loaded from config.json: ${keys.join(', ')}`);
           return;
         }
