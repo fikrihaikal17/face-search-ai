@@ -180,7 +180,18 @@ const el = {
   modalPrivacy: $('modal-privacy'),
   privacyClose: $('privacy-close'),
   privacyClose2: $('privacy-close2'),
+
+  // Bulk Selection Results
+  resSelectAll: $('res-select-all'),
+  resSelectAllLabel: $('res-select-all-label'),
+  resBulkBar: $('res-bulk-bar'),
+  resBulkCount: $('res-bulk-count'),
+  btnResBulkCancel: $('btn-res-bulk-cancel'),
+  btnResBulkDl: $('btn-res-bulk-dl'),
 };
+
+// Global state for bulk results selection
+let selectedResultIds = new Set();
 
 function updateProgressOverlay(visible, title = '', current = 0, total = 0, statusText = '') {
   if (!visible) {
@@ -989,11 +1000,21 @@ function renderResults(results) {
   if (results.length === 0) {
     el.resList.style.display = 'none';
     el.resEmpty.style.display = '';
+    if (el.resSelectAllLabel) el.resSelectAllLabel.style.display = 'none';
+    if (el.resSelectAll) el.resSelectAll.style.display = 'none';
+    updateBulkBar(results);
     return;
   }
   el.resEmpty.style.display = 'none';
   el.resList.style.display  = '';
   el.resList.innerHTML = '';
+
+  if (el.resSelectAllLabel) el.resSelectAllLabel.style.display = 'flex';
+  if (el.resSelectAll) {
+    el.resSelectAll.style.display = 'inline-block';
+    const allShownSelected = results.every(item => selectedResultIds.has(item.id));
+    el.resSelectAll.checked = results.length > 0 && allShownSelected;
+  }
 
   results.forEach((item, idx) => {
     const rank  = idx + 1;
@@ -1027,6 +1048,7 @@ function renderResults(results) {
     card.innerHTML = `
       <div class="res-rank">${medal}</div>
       <div class="res-thumb-wrap" style="position:relative;flex-shrink:0;">
+        <input type="checkbox" class="res-card-checkbox" data-id="${item.id}" ${selectedResultIds.has(item.id) ? 'checked' : ''} />
         <img class="res-thumb" src="${item.dataUrl}" alt="${esc(item.name)}" loading="lazy" />
         <canvas class="res-thumb-canvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></canvas>
       </div>
@@ -1047,7 +1069,28 @@ function renderResults(results) {
           <img class="qico-thumb" src="${item.queryFace.cropUrl}" alt="q" />
         </div>` : ''}
     `;
-    card.addEventListener('click', () => openDetail(item, rank));
+
+    // Click card opens detail, but clicking checkbox does NOT open detail!
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.res-card-checkbox')) return;
+      openDetail(item, rank);
+    });
+
+    const cardCheckbox = card.querySelector('.res-card-checkbox');
+    if (cardCheckbox) {
+      cardCheckbox.addEventListener('click', (e) => {
+        e.stopPropagation(); // Stop opening the detail modal!
+      });
+      cardCheckbox.addEventListener('change', () => {
+        if (cardCheckbox.checked) {
+          selectedResultIds.add(item.id);
+        } else {
+          selectedResultIds.delete(item.id);
+        }
+        updateBulkBar(results);
+      });
+    }
+
     el.resList.appendChild(card);
 
     // Draw face ellipse on thumbnail after image loads
@@ -1107,6 +1150,8 @@ function renderResults(results) {
 
 function clearResults() {
   allResults = [];
+  selectedResultIds.clear();
+  updateBulkBar();
   el.resList.innerHTML     = '';
   el.resList.style.display = 'none';
   el.resEmpty.style.display = '';
@@ -1114,6 +1159,115 @@ function clearResults() {
   el.statTop.textContent   = '—';
   el.cntTotal.textContent  = '0';
   el.cntShown.textContent  = '0';
+  if (el.resSelectAllLabel) el.resSelectAllLabel.style.display = 'none';
+  if (el.resSelectAll) el.resSelectAll.style.display = 'none';
+}
+
+function updateBulkBar(shownResults = allResults) {
+  if (!el.resBulkBar) return;
+  const count = selectedResultIds.size;
+  if (count > 0) {
+    el.resBulkBar.style.display = 'flex';
+    if (el.resBulkCount) {
+      el.resBulkCount.textContent = `${count} terpilih`;
+    }
+  } else {
+    el.resBulkBar.style.display = 'none';
+  }
+
+  // Sync Select All checkbox status
+  if (el.resSelectAll && shownResults.length > 0) {
+    const allShownSelected = shownResults.every(item => selectedResultIds.has(item.id));
+    el.resSelectAll.checked = allShownSelected;
+  }
+}
+
+function getUniqueZipFilename(usedNames, originalName) {
+  let name = originalName;
+  let ext = '';
+  const dotIdx = originalName.lastIndexOf('.');
+  if (dotIdx !== -1) {
+    name = originalName.substring(0, dotIdx);
+    ext = originalName.substring(dotIdx);
+  }
+  let finalName = originalName;
+  let counter = 1;
+  while (usedNames.has(finalName.toLowerCase())) {
+    finalName = `${name} (${counter})${ext}`;
+    counter++;
+  }
+  usedNames.add(finalName.toLowerCase());
+  return finalName;
+}
+
+async function downloadSelectedResults() {
+  if (selectedResultIds.size === 0) {
+    toast('Tidak ada gambar yang dipilih.', 'warning');
+    return;
+  }
+
+  const selectedFiles = allResults.filter(item => selectedResultIds.has(item.id));
+  if (selectedFiles.length === 0) {
+    toast('Gambar terpilih tidak ditemukan.', 'error');
+    return;
+  }
+
+  if (selectedFiles.length === 1) {
+    // Single file download with original name
+    const file = selectedFiles[0];
+    try {
+      const a = document.createElement('a');
+      a.href = file.dataUrl;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast('Gambar berhasil diunduh!', 'success');
+    } catch (err) {
+      console.error('Failed to download image:', err);
+      toast('Gagal mengunduh gambar: ' + err.message, 'error');
+    }
+  } else {
+    // Multiple files download as ZIP folder
+    updateProgressOverlay(true, 'Menyiapkan Folder ZIP', 0, selectedFiles.length, 'Mengompresi file...');
+    try {
+      const zip = new JSZip();
+      const usedNames = new Set();
+
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        const uniqueName = getUniqueZipFilename(usedNames, file.name);
+        
+        // Extract base64 data
+        const parts = file.dataUrl.split(',');
+        if (parts.length < 2) continue;
+        const base64Data = parts[1];
+
+        zip.file(uniqueName, base64Data, { base64: true });
+        updateProgressOverlay(true, 'Menyiapkan Folder ZIP', i + 1, selectedFiles.length, `Menambahkan: ${file.name}`);
+        await sleep(10); // Small pause for smoother UI progress bar rendering
+      }
+
+      updateProgressOverlay(true, 'Menyiapkan Folder ZIP', selectedFiles.length, selectedFiles.length, 'Mengompresi ke file ZIP...');
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `facesearch-results-${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast(`${selectedFiles.length} gambar berhasil diunduh dalam ZIP!`, 'success');
+    } catch (err) {
+      console.error('Failed to create ZIP:', err);
+      toast('Gagal mengunduh folder ZIP: ' + err.message, 'error');
+    } finally {
+      updateProgressOverlay(false);
+    }
+  }
 }
 
 function showProcessing(show, txt = 'Menganalisis…') {
@@ -2444,6 +2598,40 @@ function bind() {
       .then(() => toast('Hasil disalin ke clipboard!', 'success'))
       .catch(() => toast('Gagal salin.', 'error'));
   });
+
+  // ── Results Bulk Select ──
+  if (el.resSelectAll) {
+    el.resSelectAll.addEventListener('change', () => {
+      const isChecked = el.resSelectAll.checked;
+      const shownCards = el.resList.querySelectorAll('.res-card');
+      shownCards.forEach(card => {
+        const id = parseInt(card.dataset.id, 10);
+        const cb = card.querySelector('.res-card-checkbox');
+        if (isChecked) {
+          selectedResultIds.add(id);
+          if (cb) cb.checked = true;
+        } else {
+          selectedResultIds.delete(id);
+          if (cb) cb.checked = false;
+        }
+      });
+      updateBulkBar();
+    });
+  }
+
+  if (el.btnResBulkCancel) {
+    el.btnResBulkCancel.addEventListener('click', () => {
+      selectedResultIds.clear();
+      if (el.resSelectAll) el.resSelectAll.checked = false;
+      const cbs = el.resList.querySelectorAll('.res-card-checkbox');
+      cbs.forEach(cb => cb.checked = false);
+      updateBulkBar();
+    });
+  }
+
+  if (el.btnResBulkDl) {
+    el.btnResBulkDl.addEventListener('click', downloadSelectedResults);
+  }
 
   // ── Detail modal ──
   [el.modalClose, el.modalClose2].forEach(b => b.addEventListener('click', closeDetail));

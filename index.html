@@ -272,8 +272,15 @@
 
       <!-- Sub-header: count + sort -->
       <div class="res-subhead">
-        <div class="res-count">
-          <strong id="cnt-shown">0</strong> / <strong id="cnt-total">0</strong> foto
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" id="res-select-all" class="res-select-all-cb" style="display:none;" />
+          <label for="res-select-all" id="res-select-all-label" class="res-select-all-label" style="display:none; align-items:center; gap:6px; cursor:pointer; font-size:0.72rem; color:var(--tx-2); font-weight:500; user-select:none;">
+            <span class="custom-cb-box" style="width:14px; height:14px; border:1px solid var(--bd); border-radius:3px; display:inline-block; position:relative; background:var(--bg-glass);"></span>
+            <span>Pilih Semua</span>
+          </label>
+          <div class="res-count">
+            <strong id="cnt-shown">0</strong> / <strong id="cnt-total">0</strong> foto
+          </div>
         </div>
         <div class="res-sort">
           <button class="sort-pill active" data-sort="sim">% Mirip</button>
@@ -302,6 +309,21 @@
 
         <!-- Results -->
         <div class="res-list" id="res-list" style="display:none;"></div>
+      </div>
+
+      <!-- Floating Bulk Action Bar -->
+      <div class="res-bulk-bar" id="res-bulk-bar" style="display:none;">
+        <div class="res-bulk-info">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="stroke: var(--p-light);"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+          <span id="res-bulk-count">0 terpilih</span>
+        </div>
+        <div class="res-bulk-actions">
+          <button class="btn btn-ghost btn-sm" id="btn-res-bulk-cancel" style="font-size: 0.72rem; padding: 4px 10px;">Batal</button>
+          <button class="btn btn-primary btn-sm" id="btn-res-bulk-dl" style="font-size: 0.72rem; padding: 4px 12px; display:flex; align-items:center; gap:4px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <span>Unduh Terpilih</span>
+          </button>
+        </div>
       </div>
     </section>
 
@@ -406,7 +428,7 @@
     </div>
     <div style="display:flex; justify-content:center; width:100%; margin-bottom:18px;">
       <div class="modal-img-wrap" style="position:relative; display:inline-block; max-width:100%; border-radius:var(--r-lg); overflow:hidden; background:var(--bg-elevated);">
-        <img id="modal-img" class="modal-img" src="" alt="Detail" style="display:block; max-width:100%; max-height:450px; width:auto; height:auto; border-radius:var(--r-lg); border:1px solid var(--bd); margin-bottom:0; object-fit:contain;" />
+        <img id="modal-img" class="modal-img" src="" alt="Detail" style="display:block; max-width:100%; max-height:280px; width:auto; height:auto; border-radius:var(--r-lg); border:1px solid var(--bd); margin-bottom:0; object-fit:contain;" />
         <div id="modal-face-container" style="position:absolute; inset:0; pointer-events:none; z-index:5;"></div>
       </div>
     </div>
@@ -555,6 +577,7 @@
 <!-- Hidden processing image -->
 <img id="proc-img" style="display:none;position:absolute;top:-9999px;" alt="" crossorigin="anonymous" />
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="app.js?v=2.2"></script>
 </body>
 </html>
